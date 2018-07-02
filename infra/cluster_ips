@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+#
+# Reads a hosts file and exports the list of IPs and list of hostnames as arrays.
+# This needs to be 'source'-d, as arrays cannot be exported.
+
+file=${1:-hosts}
+: ${ZSH_VERSION:=}
+
+[[ -e $file ]] || exit 1
+
+declare -a AMBARI_CLUSTER=( $(cat "$file" | grep -v '^#' | awk '{ print $1 }') )
+declare -a AMBARI_CLUSTER_NAMES=( $(cat "$file" | grep -v '^#' | awk '{ print $2 }') )
+if [[ -n "$ZSH_VERSION" ]]; then
+    index=1
+  else
+    index=0
+fi
+export AMBARI_SERVER=${AMBARI_CLUSTER[$index]}
+export AMBARI_SERVER_NAME=${AMBARI_CLUSTER_NAMES[$index]}
+echo "Ambari server: ${AMBARI_SERVER}, cluster size: ${#AMBARI_CLUSTER[*]}"
