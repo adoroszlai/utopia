@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#
+# Creates a Gantt chart of cluster deployment tasks.
+#
+# Reads Ambari Agent command input and output files (command*json, output*txt) from a subdirectory per host.
+# Prints the chart descriptor on std.out in [Mermaid](https://mermaidjs.github.io/) format.
+# The chart can be rendered as SVG or other formats using Mermaid.
+#
+# usage: gantt_chart <host directories>
+#    eg. gantt_chart c6401 c6402 c6403
+#
+# requirements: jq
+
+set -e -u
+
+indent='    '
+
+echo 'gantt'
+echo "${indent}title Commands"
+echo "${indent}dateFormat YYYY-MM-DD HH:mm:ss"
+echo "${indent}axisFormat %H:%M"
+echo
+for dir in "$@"; do
+  [[ -d ${dir} ]] || continue
+  cd ${dir}
+  host=$(basename ${dir})
+  echo "${indent}section ${host}"
+  for output in $(find * -name 'output*txt' | sed 's/output-/output /' | sort -k2 -n | sed 's/ /-/'); do
+    [[ -s ${output} ]] || continue
+    id=$(basename ${output} | cut -f1 -d'.' | cut -f2 -d'-')
+    command_json=$(dirname ${output})/command-${id}.json
+    phase=$(jq -r '.commandParams.phase?' ${command_json})
+    [[ ${phase} == INITIAL* ]] || continue
+    comp_info=$(echo $(jq -r '.role,.roleCommand' ${command_json}))
+    [[ ${comp_info} == *INSTALL ]] || [[ ${comp_info} == *START ]] || continue
+    start_time=$(grep -m1 -o '^....-..-.. ..:..:..' ${output})
+    end_time=$(grep -o '^....-..-.. ..:..:..' ${output} | tail -1)
+    echo "${indent}${comp_info} (${id}) :${start_time},${end_time}"
+  done
+  echo
+  cd - >/dev/null
+done
